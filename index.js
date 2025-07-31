@@ -7,12 +7,10 @@ const PORT = process.env.PORT || 3000;
 
 const AGENDOR_TOKEN = process.env.AGENDOR_TOKEN;
 
-// Rota principal para testar se está no ar
 app.get("/", (req, res) => {
   res.send("API funcionando! Use /buscar-cliente?email=...");
 });
 
-// Rota para buscar cliente pelo email
 app.get("/buscar-cliente", async (req, res) => {
   const { email } = req.query;
 
@@ -28,16 +26,16 @@ app.get("/buscar-cliente", async (req, res) => {
       }
     });
 
-    const dados = response.data.data;
+    const dados = response.data?.data;
 
-    if (!dados || dados.length === 0) {
+    if (!Array.isArray(dados) || dados.length === 0) {
       return res.status(404).json({
         error: "Cliente não encontrado",
         message: `Nenhum cliente com o e-mail ${email} foi encontrado.`
       });
     }
 
-    const cliente = dados[0]; // Pega o primeiro resultado
+    const cliente = dados[0];
 
     return res.json({
       nome: cliente.name,
