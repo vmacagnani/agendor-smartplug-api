@@ -1,58 +1,57 @@
-const express = require('express');
-const axios = require('axios');
+const express = require("express");
+const axios = require("axios");
+require("dotenv").config();
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 const AGENDOR_TOKEN = process.env.AGENDOR_TOKEN;
 
-app.get('/', (req, res) => {
-  res.send('API funcionando! Use /buscar-cliente?email=...');
+// Rota principal para testar se está no ar
+app.get("/", (req, res) => {
+  res.send("API funcionando! Use /buscar-cliente?email=...");
 });
 
-app.get('/buscar-cliente', async (req, res) => {
-  const email = req.query.email;
-  let page = 1;
-  let achou = null;
+// Rota para buscar cliente pelo email
+app.get("/buscar-cliente", async (req, res) => {
+  const { email } = req.query;
+
+  if (!email) {
+    return res.status(400).json({ error: "Parâmetro 'email' é obrigatório." });
+  }
 
   try {
-    while (!achou) {
-      const { data } = await axios.get('https://api.agendor.com.br/v3/people', {
-        headers: {
-          Authorization: `Token ${AGENDOR_TOKEN}`
-        },
-        params: { page }
-      });
+    const response = await axios.get("https://api.agendor.com.br/v3/persons", {
+      params: { email },
+      headers: {
+        Authorization: `Token ${AGENDOR_TOKEN}`
+      }
+    });
 
-      if (data.data.length === 0) break;
+    const dados = response.data.data;
 
-      achou = data.data.find(p => p.email === email);
-      if (achou) break;
-
-      page++;
-    }
-
-    if (achou) {
-      res.json({
-        data: {
-          name: achou.name,
-          email: achou.email,
-          organization: achou.organization?.name || "N/A",
-          phone: achou.phones[0]?.number || "N/A"
-        }
-      });
-    } else {
-      res.json({
-        data: {
-          name: "Não encontrado",
-          email: email,
-          organization: "N/A",
-          phone: "N/A"
-        }
+    if (!dados || dados.length === 0) {
+      return res.status(404).json({
+        error: "Cliente não encontrado",
+        message: `Nenhum cliente com o e-mail ${email} foi encontrado.`
       });
     }
+
+    const cliente = dados[0]; // Pega o primeiro resultado
+
+    return res.json({
+      nome: cliente.name,
+      empresa: cliente.organization?.name || "Sem empresa associada",
+      telefone: cliente.phones?.[0]?.number || "Sem telefone",
+      email: cliente.emails?.[0]?.address || email,
+      tags: cliente.tags || [],
+      observacoes: cliente.notes || "",
+      id: cliente.id
+    });
 
   } catch (err) {
-    res.status(500).json({
+    console.error("Erro na requisição:", err.message);
+    return res.status(500).json({
       error: "Erro ao buscar cliente",
       message: err.message
     });
