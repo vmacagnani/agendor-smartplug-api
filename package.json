@@ -1,12 +1,14 @@
 {
   "name": "agendor-smartplug-api",
   "version": "1.0.0",
+  "description": "Smartplug para buscar dados do Agendor via e-mail",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
     "axios": "^1.6.8",
+    "dotenv": "^16.4.5",
     "express": "^4.18.2"
   }
 }
