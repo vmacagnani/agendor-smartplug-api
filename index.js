@@ -19,7 +19,7 @@ app.get("/buscar-cliente", async (req, res) => {
   }
 
   try {
-    const response = await axios.get("https://api.agendor.com.br/v3/persons", {
+    const response = await axios.get("https://api.agendor.com.br/v3/people", {
       params: { email },
       headers: {
         Authorization: `Token ${AGENDOR_TOKEN}`
