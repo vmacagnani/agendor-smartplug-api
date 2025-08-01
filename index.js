@@ -4,7 +4,6 @@ require("dotenv").config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-
 const AGENDOR_TOKEN = process.env.AGENDOR_TOKEN;
 
 app.get("/", (req, res) => {
@@ -19,23 +18,27 @@ app.get("/buscar-cliente", async (req, res) => {
   }
 
   try {
-    const response = await axios.get("https://api.agendor.com.br/v3/people/search", {
-      params: { term: email },
+    // Busca genérica com parte do e-mail
+    const searchResponse = await axios.get("https://api.agendor.com.br/v3/search/people", {
+      params: { q: email },
       headers: {
         Authorization: `Token ${AGENDOR_TOKEN}`
       }
     });
 
-    const dados = response.data?.data;
+    const resultados = searchResponse.data?.data || [];
 
-    if (!Array.isArray(dados) || dados.length === 0) {
+    // Procura exata pelo e-mail
+    const cliente = resultados.find(pessoa =>
+      pessoa.emails?.some(e => e.address.toLowerCase() === email.toLowerCase())
+    );
+
+    if (!cliente) {
       return res.status(404).json({
         error: "Cliente não encontrado",
         message: `Nenhum cliente com o e-mail ${email} foi encontrado.`
       });
     }
-
-    const cliente = dados[0];
 
     return res.json({
       nome: cliente.name,
