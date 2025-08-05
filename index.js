@@ -1,61 +1,62 @@
-const express = require("express");
-const axios = require("axios");
-require("dotenv").config();
-
+const express = require('express');
 const app = express();
-const PORT = process.env.PORT || 3000;
+const port = process.env.PORT || 3000;
 
-const AGENDOR_TOKEN = process.env.AGENDOR_TOKEN;
+// Página HTML que será renderizada no SmartPlug
+app.get('/', (req, res) => {
+  res.setHeader('Content-Type', 'text/html');
+  res.send(`
+    <!DOCTYPE html>
+    <html lang="pt-BR">
+      <head>
+        <meta charset="UTF-8" />
+        <title>SmartPlug + Agendor</title>
+        <style>
+          body { font-family: sans-serif; padding: 20px; }
+          .item { margin-bottom: 10px; }
+        </style>
+      </head>
+      <body>
+        <h2>Contatos do Agendor:</h2>
+        <div id="output">Carregando...</div>
 
-app.get("/", (req, res) => {
-  res.send("API funcionando! Use /buscar-cliente?email=...");
+        <script>
+          fetch("/api/contatos")
+            .then(res => res.json())
+            .then(data => {
+              const container = document.getElementById('output');
+              container.innerHTML = "";
+
+              if (data.length === 0) {
+                container.innerHTML = "Nenhum contato encontrado.";
+              } else {
+                data.forEach(contato => {
+                  const div = document.createElement('div');
+                  div.className = 'item';
+                  div.textContent = contato.nome + " - " + contato.email;
+                  container.appendChild(div);
+                });
+              }
+            })
+            .catch(() => {
+              document.getElementById('output').innerText = "Erro ao carregar dados.";
+            });
+        </script>
+      </body>
+    </html>
+  `);
 });
 
-app.get("/buscar-cliente", async (req, res) => {
-  const { email } = req.query;
-
-  if (!email) {
-    return res.status(400).json({ error: "Parâmetro 'email' é obrigatório." });
-  }
-
-  try {
-    const response = await axios.get("https://api.agendor.com.br/v3/people", {
-      params: { email },
-      headers: {
-        Authorization: `Token ${AGENDOR_TOKEN}`
-      }
-    });
-
-    const dados = response.data?.data;
-
-    if (!Array.isArray(dados) || dados.length === 0) {
-      return res.status(404).json({
-        error: "Cliente não encontrado",
-        message: `Nenhum cliente com o e-mail ${email} foi encontrado.`
-      });
-    }
-
-    const cliente = dados[0];
-
-    return res.json({
-      nome: cliente.name,
-      empresa: cliente.organization?.name || "Sem empresa associada",
-      telefone: cliente.phones?.[0]?.number || "Sem telefone",
-      email: cliente.emails?.[0]?.address || email,
-      tags: cliente.tags || [],
-      observacoes: cliente.notes || "",
-      id: cliente.id
-    });
-
-  } catch (err) {
-    console.error("Erro na requisição:", err.message);
-    return res.status(500).json({
-      error: "Erro ao buscar cliente",
-      message: err.message
-    });
-  }
+// API simulando retorno do Agendor
+app.get('/api/contatos', (req, res) => {
+  // Aqui você pode integrar com a API real do Agendor se quiser
+  const contatosFake = [
+    { nome: "Vinícius Macagnani", email: "vinicius@email.com" },
+    { nome: "Cliente Exemplo", email: "exemplo@cliente.com" }
+  ];
+  res.json(contatosFake);
 });
 
-app.listen(PORT, () => {
-  console.log(`Servidor rodando na porta ${PORT}`);
+app.listen(port, () => {
+  console.log(`Servidor rodando em http://localhost:${port}`);
 });
