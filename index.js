@@ -1,29 +1,46 @@
-const express = require('express');
-const axios = require('axios');
-const dotenv = require('dotenv');
+// index.js
+
+import express from 'express';
+import fetch from 'node-fetch';
+import dotenv from 'dotenv';
+import cors from 'cors';
+
+// Carrega variáveis do ambiente (.env ou Render)
+dotenv.config();
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-dotenv.config();
+// Middleware
+app.use(cors());
 
+// Rota principal de teste
+app.get('/', (req, res) => {
+  res.send('API SmartPlug com dados do Agendor está rodando!');
+});
+
+// Rota de contatos (API externa do Agendor)
 app.get('/api/contatos', async (req, res) => {
   try {
-    const token = process.env.AGENDOR_TOKEN;
-    if (!token) return res.status(500).json({ error: 'Token não configurado.' });
-
-    const response = await axios.get('https://api.agendor.com.br/v3/people', {
+    const response = await fetch('https://api.agendor.com.br/v3/people', {
       headers: {
-        Authorization: `Token ${token}`
+        'Authorization': `Token ${process.env.AGENDOR_TOKEN}`
       }
     });
 
-    res.json(response.data);
+    if (!response.ok) {
+      return res.status(response.status).json({ error: 'Erro ao buscar contatos do Agendor' });
+    }
+
+    const data = await response.json();
+    res.json(data);
   } catch (error) {
-    console.error('Erro na requisição:', error.message);
-    res.status(500).json({ error: 'Erro ao buscar contatos do Agendor.' });
+    console.error('Erro ao acessar a API do Agendor:', error);
+    res.status(500).json({ error: 'Erro interno no servidor' });
   }
 });
 
+// Inicia o servidor
 app.listen(PORT, () => {
   console.log(`Servidor rodando na porta ${PORT}`);
 });
