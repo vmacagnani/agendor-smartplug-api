@@ -4,7 +4,7 @@ const dotenv = require('dotenv');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-dotenv.config(); // carrega variáveis do .env local (ignorado no render)
+dotenv.config();
 
 app.get('/api/contatos', async (req, res) => {
   try {
