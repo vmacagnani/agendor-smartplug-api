@@ -9,6 +9,10 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.static('public'));
 
+app.get('/', (req, res) => {
+  res.send('🟢 API SmartPlug Agendor está online!');
+});
+
 app.get('/api/contato', async (req, res) => {
   const email = req.query.email;
 
@@ -37,7 +41,7 @@ app.get('/api/contato', async (req, res) => {
 
     res.json(contato);
   } catch (error) {
-    console.error(error);
+    console.error('Erro na requisição ao Agendor:', error.message);
     res.status(500).json({ error: 'Erro interno ao buscar contato' });
   }
 });
