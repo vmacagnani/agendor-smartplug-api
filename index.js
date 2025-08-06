@@ -1,7 +1,9 @@
-const express = require('express');
-const fetch = require('node-fetch');
-const cors = require('cors');
-require('dotenv').config();
+import express from 'express';
+import fetch from 'node-fetch';
+import cors from 'cors';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 const app = express();
 app.use(cors());
@@ -14,7 +16,7 @@ app.get('/api/contatos', async (req, res) => {
   const email = req.query.email;
 
   if (!email) {
-    return res.status(400).json({ error: 'Parâmetro email é obrigatório' });
+    return res.status(400).json({ error: 'Parâmetro "email" é obrigatório' });
   }
 
   try {
@@ -24,11 +26,21 @@ app.get('/api/contatos', async (req, res) => {
       }
     });
 
+    if (!response.ok) {
+      throw new Error(`Erro na API do Agendor: ${response.statusText}`);
+    }
+
     const data = await response.json();
-    res.json({ data: data.data });
+    const contato = data.data.find(person => person.email === email);
+
+    if (!contato) {
+      return res.status(404).json({ error: 'Contato não encontrado' });
+    }
+
+    res.json({ data: contato });
   } catch (error) {
-    console.error('Erro na requisição ao Agendor:', error);
-    res.status(500).json({ error: 'Erro interno do servidor' });
+    console.error('Erro na requisição ao Agendor:', error.message);
+    res.status(500).json({ error: 'Erro interno ao buscar contato' });
   }
 });
 
