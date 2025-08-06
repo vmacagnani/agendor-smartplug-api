@@ -17,7 +17,7 @@ app.get('/api/contato', async (req, res) => {
   }
 
   try {
-    const response = await fetch('https://api.agendor.com.br/v3/persons', {
+    const response = await fetch('https://api.agendor.com.br/v3/people', {
       headers: {
         Authorization: `Token ${process.env.AGENDOR_TOKEN}`
       }
