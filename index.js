@@ -1,18 +1,15 @@
 import express from 'express';
 import fetch from 'node-fetch';
-import cors from 'cors';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
 const app = express();
-app.use(cors());
+const PORT = process.env.PORT || 3000;
 
-app.get('/', (req, res) => {
-  res.send('API Agendor SmartPlug Online');
-});
+app.use(express.static('public'));
 
-app.get('/api/contatos', async (req, res) => {
+app.get('/api/contato', async (req, res) => {
   const email = req.query.email;
 
   if (!email) {
@@ -20,31 +17,31 @@ app.get('/api/contatos', async (req, res) => {
   }
 
   try {
-    const response = await fetch(`https://api.agendor.com.br/v3/persons/search?term=${encodeURIComponent(email)}`, {
+    const response = await fetch('https://api.agendor.com.br/v3/persons', {
       headers: {
         Authorization: `Token ${process.env.AGENDOR_TOKEN}`
       }
     });
 
     if (!response.ok) {
-      throw new Error(`Erro na API do Agendor: ${response.statusText}`);
+      const errorText = await response.text();
+      throw new Error(`Erro na API do Agendor: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
-    const contato = data.data.find(person => person.email === email);
+    const contato = data.data.find(pessoa => pessoa.email === email);
 
     if (!contato) {
       return res.status(404).json({ error: 'Contato não encontrado' });
     }
 
-    res.json({ data: contato });
+    res.json(contato);
   } catch (error) {
-    console.error('Erro na requisição ao Agendor:', error.message);
+    console.error(error);
     res.status(500).json({ error: 'Erro interno ao buscar contato' });
   }
 });
 
-const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Servidor rodando na porta ${PORT}`);
 });
