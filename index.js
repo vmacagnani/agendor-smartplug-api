@@ -1,32 +1,31 @@
-import express from 'express';
-import cors from 'cors'; // <--- Adicione isso
-import fetch from 'node-fetch';
-import dotenv from 'dotenv';
-
-dotenv.config();
+const express = require('express');
+const axios = require('axios');
+const cors = require('cors');
+require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors()); // <--- E isso aqui
+app.use(cors());
 
 app.get('/api/contato', async (req, res) => {
-  const email = req.query.email;
-  if (!email) {
-    return res.status(400).json({ error: 'Email é obrigatório' });
+  const { email } = req.query;
+
+  if (!email || !email.includes('@')) {
+    return res.status(400).json({ error: 'Email inválido' });
   }
 
   try {
-    const response = await fetch(`https://api.agendor.com.br/v3/people?email=${encodeURIComponent(email)}`, {
+    const response = await axios.get(`https://api.agendor.com.br/v3/people?email=${encodeURIComponent(email)}`, {
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Token ${process.env.AGENDOR_API_TOKEN}`
+        'Authorization': `Token ${process.env.AGENDOR_API_KEY}`,
+        'Content-Type': 'application/json'
       }
     });
 
-    const data = await response.json();
+    const data = response.data;
 
-    if (!response.ok || !data || !data.data || data.data.length === 0) {
+    if (!data || !Array.isArray(data.data) || data.data.length === 0) {
       return res.status(404).json({ error: 'Contato não encontrado' });
     }
 
@@ -36,17 +35,18 @@ app.get('/api/contato', async (req, res) => {
       name: contato.name,
       email: contato.email,
       contact: contato.phones?.[0]?.number || '',
-      organization: contato.organization,
-      role: contato.role
+      organization: contato.organization || {},
+      role: contato.role || ''
     });
+
   } catch (error) {
-    console.error('Erro na requisição ao Agendor:', error);
-    res.status(500).json({ error: 'Erro interno ao buscar contato' });
+    console.error('Erro ao buscar no Agendor:', error.response?.data || error.message);
+    res.status(500).json({ error: 'Erro ao buscar no Agendor' });
   }
 });
 
 app.get('/', (req, res) => {
-  res.send('API Agendor OK');
+  res.send('API Agendor está ativa.');
 });
 
 app.listen(PORT, () => {
