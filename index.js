@@ -2,83 +2,77 @@ import express from 'express';
 import axios from 'axios';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import jwt from 'jsonwebtoken';
 
-// Carrega as variáveis de ambiente do arquivo .env
 dotenv.config();
-
 const app = express();
+app.use(cors());
 
-// --- INÍCIO DA MUDANÇA ---
-// Configuração de CORS mais explícita e robusta
-const corsOptions = {
-  origin: '*', // Permite requisições de QUALQUER origem.
-  methods: ['GET', 'POST', 'OPTIONS'], // Permite estes métodos.
-  allowedHeaders: ['Content-Type', 'Authorization'], // Permite estes cabeçalhos.
-};
+const { AGENDOR_API_KEY, JWT_SECRET, PORT = 3000 } = process.env;
 
-app.use(cors(corsOptions));
-
-// Adiciona um manipulador para requisições OPTIONS (preflight requests)
-// Isso é crucial para algumas chamadas complexas que os navegadores fazem.
-app.options('*', cors(corsOptions));
-// --- FIM DA MUDANÇA ---
-
-
-// Obtém as variáveis de ambiente
-const AGENDOR_API_KEY = process.env.AGENDOR_API_KEY;
-const PORT = process.env.PORT || 3000;
-
-// Rota de teste para verificar se a API está online
-app.get('/', (req, res) => {
-  res.status(200).send('API do SmartPlug para Agendor está no ar e pronta para receber chamadas.');
-});
-
-// Rota principal que busca o contato no Agendor
-app.get('/api/contato', async (req, res) => {
-  const { email } = req.query;
-
-  // 1. Validação do parâmetro de email
-  if (!email) {
-    return res.status(400).json({ error: 'Parâmetro "email" é obrigatório na consulta.' });
-  }
-  
-  // 2. Validação da chave de API
-  if (!AGENDOR_API_KEY) {
-    console.error('Erro fatal: A variável de ambiente AGENDOR_API_KEY não está configurada no servidor.');
-    return res.status(500).json({ error: 'Erro de configuração no servidor: chave de API ausente.' });
+app.get('/smartplug', async (req, res) => {
+  // 1. Validar se os segredos estão configurados no servidor
+  if (!AGENDOR_API_KEY || !JWT_SECRET) {
+    return res.status(500).send('Erro de configuração no servidor: Chaves de API ou JWT ausentes.');
   }
 
-  // 3. Chamada para a API do Agendor
+  // 2. Receber e validar o token do Freshdesk
+  const { signed_token } = req.query;
+  if (!signed_token) {
+    return res.status(400).send('Token do Freshdesk não recebido.');
+  }
+
   try {
-    const response = await axios.get(`https://api.agendor.com.br/v3/people?email=${email}`, {
-      headers: {
-        'Authorization': `Token ${AGENDOR_API_KEY}`,
-        'Content-Type': 'application/json'
-      }
+    // 3. Decodificar o token para obter os dados do usuário
+    const decoded = jwt.verify(signed_token, JWT_SECRET);
+    const userEmail = decoded?.context?.user?.email;
+
+    if (!userEmail) {
+      return res.send('<p>Email do cliente não encontrado no token.</p>');
+    }
+
+    // 4. Buscar os dados no Agendor com o email obtido
+    const agendorResponse = await axios.get(`https://api.agendor.com.br/v3/people?email=${userEmail}`, {
+      headers: { 'Authorization': `Token ${AGENDOR_API_KEY}` }
     });
 
-    // 4. Tratamento da resposta do Agendor
-    if (response.data && response.data.data && response.data.data.length > 0) {
-      return res.json(response.data.data[0]);
-    } else {
-      return res.status(404).json({ error: 'Contato não encontrado no Agendor.' });
+    const contactData = agendorResponse.data?.data?.[0];
+
+    if (!contactData) {
+      return res.send(`<p>Cliente com email ${userEmail} não encontrado no Agendor.</p>`);
     }
 
+    // 5. Montar e enviar o HTML final como resposta
+    const orgName = contactData.organization?.name || 'N/A';
+    const phone = contactData.contact?.whatsapp || contactData.contact?.mobile || 'N/A';
+
+    const finalHtml = `
+      <!DOCTYPE html>
+      <html lang="pt-BR">
+      <head><style>body{font-family:-apple-system,sans-serif;padding:15px;font-size:14px}table{width:100%;border-collapse:collapse;margin-top:10px}th,td{padding:8px;border:1px solid #e1e1e1;text-align:left;word-break:break-all}th{background-color:#f8f8f8;width:30%}</style></head>
+      <body>
+        <h4>Cliente no Agendor</h4>
+        <table>
+          <tr><th>Nome</th><td>${contactData.name || 'N/A'}</td></tr>
+          <tr><th>Email</th><td>${contactData.email || 'N/A'}</td></tr>
+          <tr><th>Telefone</th><td>${phone}</td></tr>
+          <tr><th>Empresa</th><td>${orgName}</td></tr>
+        </table>
+      </body>
+      </html>
+    `;
+    res.send(finalHtml);
+
   } catch (error) {
-    // 5. Tratamento de erros da chamada
-    console.error('Erro ao buscar dados no Agendor:', error.response?.data || error.message);
-    
-    if (error.response) {
-        if (error.response.status === 401) {
-             return res.status(401).json({ error: 'Token de autenticação do Agendor é inválido ou expirou.' });
-        }
-         return res.status(error.response.status).json({ error: `Erro na API do Agendor: ${error.response.data?.error || error.message}` });
-    } else {
-        return res.status(500).json({ error: 'Não foi possível conectar à API do Agendor.' });
+    console.error('Erro no processo:', error);
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).send('Erro: A Chave Secreta JWT está incorreta.');
     }
+    if (error.response) { // Erro da API do Agendor
+        return res.status(404).send(`Cliente com email não encontrado no Agendor.`);
+    }
+    return res.status(500).send('Ocorreu um erro interno.');
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Servidor rodando na porta ${PORT}`);
-});
+app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
