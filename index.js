@@ -13,15 +13,9 @@ app.use(cors());
 app.use(express.json());
 
 
-// --- VARIÁVEIS DE AMBIENTE E MAPEAMENTO ---
+// --- VARIÁVEIS DE AMBIENTE ---
 const AGENDOR_API_KEY = process.env.AGENDOR_API_KEY;
 const PORT = process.env.PORT || 3000;
-
-// IMPORTANTE: Substitua os valores pelos IDs de usuário reais do Agendor
-const USER_MAP = {
-    'daniel.martins@avatek.com.br': 123456, // Substituir pelo ID real
-    'denise.grigorine@avatek.com.br': 789012  // Substituir pelo ID real
-};
 
 
 // --- ROTAS DA API ---
@@ -108,10 +102,12 @@ app.post('/api/criar-contato', async (req, res) => {
       payload.organization = parseInt(organizationId, 10);
     }
     
-    // Adiciona o ownerUser se um email válido foi fornecido
-    if (ownerUserEmail && USER_MAP[ownerUserEmail]) {
-        payload.ownerUser = USER_MAP[ownerUserEmail];
+    // --- INÍCIO DA CORREÇÃO ---
+    // A documentação permite enviar o email do responsável diretamente.
+    if (ownerUserEmail) {
+        payload.ownerUser = ownerUserEmail;
     }
+    // --- FIM DA CORREÇÃO ---
 
     const response = await axios.post('https://api.agendor.com.br/v3/people', payload, {
       headers: { 'Authorization': `Token ${AGENDOR_API_KEY}`, 'Content-Type': 'application/json' }
@@ -156,9 +152,13 @@ app.post('/api/criar-empresa', async (req, res) => {
     
     const payload = { name };
     if (cnpj) payload.cnpj = cnpj;
-    if (ownerUserEmail && USER_MAP[ownerUserEmail]) {
-        payload.ownerUser = USER_MAP[ownerUserEmail];
+    
+    // --- INÍCIO DA CORREÇÃO ---
+    // A documentação permite enviar o email do responsável diretamente.
+    if (ownerUserEmail) {
+        payload.ownerUser = ownerUserEmail;
     }
+    // --- FIM DA CORREÇÃO ---
 
     try {
         const response = await axios.post('https://api.agendor.com.br/v3/organizations', payload, {
