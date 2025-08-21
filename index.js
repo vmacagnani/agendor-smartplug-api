@@ -3,17 +3,33 @@ import axios from 'axios';
 import cors from 'cors';
 import dotenv from 'dotenv';
 
+// Carrega as variáveis de ambiente do arquivo .env
 dotenv.config();
+
 const app = express();
+
+// --- CONFIGURAÇÃO DOS MIDDLEWARES ---
+// Habilita o CORS para permitir que o frontend acesse a API
 app.use(cors());
+// Habilita o Express para conseguir ler o corpo de requisições em formato JSON
 app.use(express.json());
 
+
+// --- VARIÁVEIS DE AMBIENTE ---
 const AGENDOR_API_KEY = process.env.AGENDOR_API_KEY;
 const PORT = process.env.PORT || 3000;
 
-// --- ROTAS DE TESTE E PESSOAS (EXISTENTES) ---
-app.get('/', (req, res) => res.status(200).send('API do SmartPlug para Agendor v2 está no ar.'));
 
+// --- ROTAS DA API ---
+
+// Rota de teste para verificar se a API está online
+app.get('/', (req, res) => {
+  res.status(200).send('API do SmartPlug para Agendor v3 está no ar.');
+});
+
+// --- ROTAS DE PESSOAS ---
+
+// Rota para BUSCAR um contato existente no Agendor
 app.get('/api/contato', async (req, res) => {
   const { email } = req.query;
   if (!email) return res.status(400).json({ error: 'Parâmetro "email" é obrigatório.' });
@@ -30,24 +46,54 @@ app.get('/api/contato', async (req, res) => {
   }
 });
 
+// Rota para CRIAR um novo contato no Agendor (versão atualizada)
 app.post('/api/criar-contato', async (req, res) => {
-  const { name, email, organizationName, phone } = req.body;
-  if (!name || !email) return res.status(400).json({ error: 'Nome e Email são obrigatórios.' });
-  if (!AGENDOR_API_KEY) return res.status(500).json({ error: 'Erro de configuração: AGENDOR_API_KEY ausente.' });
-  const payload = { name, email, organization: { name: organizationName || '' }, contact: { whatsapp: phone || null } };
+  // Adicionamos 'organizationId' aos dados recebidos
+  const { name, email, organizationName, organizationId, phone } = req.body;
+
+  if (!name || !email) {
+    return res.status(400).json({ error: 'Nome e Email são obrigatórios.' });
+  }
+  if (!AGENDOR_API_KEY) {
+    return res.status(500).json({ error: 'Erro de configuração no servidor: AGENDOR_API_KEY ausente.' });
+  }
+
+  // Monta o corpo da requisição inicial
+  const payload = {
+    name: name,
+    email: email,
+    contact: { whatsapp: phone || null }
+  };
+
+  // Adiciona a organização por ID (preferencial) ou por nome
+  if (organizationId) {
+    payload.organization = { id: organizationId };
+  } else if (organizationName) {
+    payload.organization = { name: organizationName };
+  }
+
   try {
     const response = await axios.post('https://api.agendor.com.br/v3/people', payload, {
-      headers: { 'Authorization': `Token ${AGENDOR_API_KEY}`, 'Content-Type': 'application/json' }
+      headers: {
+        'Authorization': `Token ${AGENDOR_API_KEY}`,
+        'Content-Type': 'application/json'
+      }
     });
     return res.status(201).json(response.data);
   } catch (error) {
+    console.error('Erro ao criar contato no Agendor:', error.response?.data || error.message);
     const status = error.response?.status || 500;
-    const message = status === 409 ? 'Um contato com este email já existe.' : 'Erro ao criar contato no Agendor.';
+    // Tenta retornar uma mensagem de erro mais específica da API do Agendor
+    let message = (error.response?.data?.errors || ['Erro ao criar contato no Agendor.']).join(', ');
+    if (status === 409) {
+        message = 'Um contato com este email já existe no Agendor.';
+    }
     return res.status(status).json({ error: message });
   }
 });
 
-// --- NOVAS ROTAS PARA EMPRESAS ---
+
+// --- ROTAS DE EMPRESAS ---
 
 // Rota para BUSCAR uma empresa pelo nome
 app.get('/api/empresa', async (req, res) => {
@@ -87,5 +133,5 @@ app.post('/api/criar-empresa', async (req, res) => {
 
 // --- INICIALIZAÇÃO DO SERVIDOR ---
 app.listen(PORT, () => {
-  console.log(`Servidor v2 rodando na porta ${PORT}`);
+  console.log(`Servidor v3 rodando na porta ${PORT}`);
 });
