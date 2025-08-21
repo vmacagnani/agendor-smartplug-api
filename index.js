@@ -118,7 +118,10 @@ app.post('/api/criar-contato', async (req, res) => {
       contact: { whatsapp: phone || null }
     };
     if (organizationId) {
-      payload.organization = { id: organizationId };
+      // --- INÍCIO DA CORREÇÃO ---
+      // Converte o ID para String para garantir a compatibilidade com a API do Agendor
+      payload.organization = { id: String(organizationId) };
+      // --- FIM DA CORREÇÃO ---
     }
 
     console.log('[DEBUG] Payload final para criar pessoa:', JSON.stringify(payload, null, 2));
