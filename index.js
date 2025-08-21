@@ -9,9 +9,7 @@ dotenv.config();
 const app = express();
 
 // --- CONFIGURAÇÃO DOS MIDDLEWARES ---
-// Habilita o CORS para permitir que o frontend acesse a API
 app.use(cors());
-// Habilita o Express para conseguir ler o corpo de requisições em formato JSON
 app.use(express.json());
 
 
@@ -21,15 +19,11 @@ const PORT = process.env.PORT || 3000;
 
 
 // --- ROTAS DA API ---
-
-// Rota de teste para verificar se a API está online
 app.get('/', (req, res) => {
   res.status(200).send('API do SmartPlug para Agendor v3 está no ar.');
 });
 
 // --- ROTAS DE PESSOAS ---
-
-// Rota para BUSCAR um contato existente no Agendor
 app.get('/api/contato', async (req, res) => {
   const { email } = req.query;
   if (!email) return res.status(400).json({ error: 'Parâmetro "email" é obrigatório.' });
@@ -59,48 +53,35 @@ app.post('/api/criar-contato', async (req, res) => {
 
   try {
     let organizationId = null;
-    console.log(`[DEBUG] Iniciando criação de contato para: ${email} com empresa: "${organizationName}"`);
 
-    // Se um nome de empresa foi fornecido, vamos encontrar ou criar o ID dela
     if (organizationName && organizationName.trim() !== '') {
       const trimmedOrgName = organizationName.trim();
       
-      // 1. Tenta buscar a empresa pelo nome exato
       try {
-        console.log(`[DEBUG] Buscando empresa: "${trimmedOrgName}"`);
         const searchResponse = await axios.get(`https://api.agendor.com.br/v3/organizations?name=${encodeURIComponent(trimmedOrgName)}`, {
           headers: { 'Authorization': `Token ${AGENDOR_API_KEY}` }
         });
         if (searchResponse.data?.data?.length > 0) {
           organizationId = searchResponse.data.data[0].id;
-          console.log(`[DEBUG] Empresa encontrada. ID: ${organizationId}`);
-        } else {
-          console.log(`[DEBUG] Empresa "${trimmedOrgName}" não encontrada.`);
         }
       } catch (searchError) {
         if (searchError.response?.status !== 404) console.error("Erro ao buscar empresa:", searchError.message);
-        else console.log(`[DEBUG] Empresa "${trimmedOrgName}" não encontrada (retorno 404).`);
       }
 
-      // 2. Se a empresa não foi encontrada, cria uma nova
       if (!organizationId) {
         try {
-          console.log(`[DEBUG] Criando nova empresa: "${trimmedOrgName}"`);
           const createResponse = await axios.post('https://api.agendor.com.br/v3/organizations', { name: trimmedOrgName }, {
             headers: { 'Authorization': `Token ${AGENDOR_API_KEY}`, 'Content-Type': 'application/json' }
           });
           const createdOrg = createResponse.data.data || createResponse.data.organization || createResponse.data;
           organizationId = createdOrg.id;
-          console.log(`[DEBUG] Empresa criada com sucesso. ID: ${organizationId}`);
         } catch (createError) {
             if(createError.response?.status === 409) {
-                console.log(`[DEBUG] Conflito ao criar empresa (409), tentando buscar novamente.`);
                 const raceSearchResponse = await axios.get(`https://api.agendor.com.br/v3/organizations?name=${encodeURIComponent(trimmedOrgName)}`, {
                     headers: { 'Authorization': `Token ${AGENDOR_API_KEY}` }
                 });
                 if (raceSearchResponse.data?.data?.length > 0) {
                     organizationId = raceSearchResponse.data.data[0].id;
-                    console.log(`[DEBUG] Empresa encontrada após conflito. ID: ${organizationId}`);
                 } else {
                     throw new Error('Falha ao encontrar empresa após conflito.');
                 }
@@ -111,18 +92,18 @@ app.post('/api/criar-contato', async (req, res) => {
       }
     }
 
-    // 3. Agora, cria a pessoa com o ID da organização (se houver)
     const payload = {
       name: name,
       email: email,
       contact: { whatsapp: phone || null }
     };
+    
+    // --- INÍCIO DA CORREÇÃO ---
+    // A documentação da API exige que o ID seja um NÚMERO (integer).
     if (organizationId) {
-      // --- INÍCIO DA CORREÇÃO ---
-      // Converte o ID para String para garantir a compatibilidade com a API do Agendor
-      payload.organization = { id: String(organizationId) };
-      // --- FIM DA CORREÇÃO ---
+      payload.organization = { id: parseInt(organizationId, 10) };
     }
+    // --- FIM DA CORREÇÃO ---
 
     console.log('[DEBUG] Payload final para criar pessoa:', JSON.stringify(payload, null, 2));
 
@@ -146,8 +127,6 @@ app.post('/api/criar-contato', async (req, res) => {
 
 
 // --- ROTAS DE EMPRESAS ---
-
-// Rota para BUSCAR uma empresa pelo nome
 app.get('/api/empresa', async (req, res) => {
     const { name } = req.query;
     if (!name) return res.status(400).json({ error: 'Parâmetro "name" é obrigatório.' });
@@ -164,7 +143,6 @@ app.get('/api/empresa', async (req, res) => {
     }
 });
 
-// Rota para CRIAR uma nova empresa
 app.post('/api/criar-empresa', async (req, res) => {
     const { name } = req.body;
     if (!name) return res.status(400).json({ error: 'Nome da empresa é obrigatório.' });
