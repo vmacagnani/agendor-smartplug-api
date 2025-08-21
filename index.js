@@ -102,12 +102,10 @@ app.post('/api/criar-contato', async (req, res) => {
       payload.organization = parseInt(organizationId, 10);
     }
     
-    // --- INÍCIO DA CORREÇÃO ---
     // A documentação permite enviar o email do responsável diretamente.
     if (ownerUserEmail) {
         payload.ownerUser = ownerUserEmail;
     }
-    // --- FIM DA CORREÇÃO ---
 
     const response = await axios.post('https://api.agendor.com.br/v3/people', payload, {
       headers: { 'Authorization': `Token ${AGENDOR_API_KEY}`, 'Content-Type': 'application/json' }
@@ -146,19 +144,20 @@ app.get('/api/empresa', async (req, res) => {
 });
 
 app.post('/api/criar-empresa', async (req, res) => {
-    const { name, cnpj, ownerUserEmail } = req.body;
+    // Adiciona 'description' aos dados recebidos do corpo da requisição
+    const { name, cnpj, ownerUserEmail, description } = req.body;
     if (!name) return res.status(400).json({ error: 'Nome da empresa é obrigatório.' });
     if (!AGENDOR_API_KEY) return res.status(500).json({ error: 'Erro de configuração: AGENDOR_API_KEY ausente.' });
     
     const payload = { name };
     if (cnpj) payload.cnpj = cnpj;
-    
-    // --- INÍCIO DA CORREÇÃO ---
-    // A documentação permite enviar o email do responsável diretamente.
     if (ownerUserEmail) {
         payload.ownerUser = ownerUserEmail;
     }
-    // --- FIM DA CORREÇÃO ---
+    // Adiciona a descrição ao payload se ela for enviada
+    if (description) {
+        payload.description = description;
+    }
 
     try {
         const response = await axios.post('https://api.agendor.com.br/v3/organizations', payload, {
