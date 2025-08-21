@@ -65,14 +65,12 @@ app.post('/api/criar-contato', async (req, res) => {
     contact: { whatsapp: phone || null }
   };
 
-  // --- INÍCIO DA CORREÇÃO ---
   // Adiciona a organização SOMENTE se um nome ou ID for fornecido e não estiver vazio
   if (organizationId) {
     payload.organization = { id: organizationId };
   } else if (organizationName && organizationName.trim() !== '') {
     payload.organization = { name: organizationName.trim() };
   }
-  // --- FIM DA CORREÇÃO ---
 
   try {
     const response = await axios.post('https://api.agendor.com.br/v3/people', payload, {
@@ -81,7 +79,9 @@ app.post('/api/criar-contato', async (req, res) => {
         'Content-Type': 'application/json'
       }
     });
-    return res.status(201).json(response.data);
+    // Garante que o objeto retornado não esteja aninhado dentro de uma chave "data"
+    const createdData = response.data.data || response.data;
+    return res.status(201).json(createdData);
   } catch (error) {
     console.error('Erro ao criar contato no Agendor:', error.response?.data || error.message);
     const status = error.response?.status || 500;
@@ -124,7 +124,14 @@ app.post('/api/criar-empresa', async (req, res) => {
         const response = await axios.post('https://api.agendor.com.br/v3/organizations', payload, {
             headers: { 'Authorization': `Token ${AGENDOR_API_KEY}`, 'Content-Type': 'application/json' }
         });
-        return res.status(201).json(response.data);
+        
+        // --- INÍCIO DA CORREÇÃO ---
+        // A resposta do Agendor pode estar aninhada em 'data' ou 'organization'.
+        // Este código verifica todas as possibilidades e retorna o objeto correto.
+        const createdData = response.data.data || response.data.organization || response.data;
+        return res.status(201).json(createdData);
+        // --- FIM DA CORREÇÃO ---
+
     } catch (error) {
         const status = error.response?.status || 500;
         const message = status === 409 ? 'Uma empresa com este nome já existe.' : 'Erro ao criar empresa no Agendor.';
