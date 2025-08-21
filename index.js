@@ -98,12 +98,15 @@ app.post('/api/criar-contato', async (req, res) => {
       contact: { whatsapp: phone || null }
     };
     
-    // --- INÍCIO DA CORREÇÃO ---
-    // A documentação da API exige que o ID seja um NÚMERO (integer).
+    // --- INÍCIO DA CORREÇÃO FINAL ---
+    // A documentação da API mostra que o valor da chave "organization" deve ser o ID (integer) diretamente.
     if (organizationId) {
-      payload.organization = { id: parseInt(organizationId, 10) };
+      payload.organization = parseInt(organizationId, 10);
+    } else if (organizationName && organizationName.trim() !== '') {
+      // Se não tivermos um ID, enviamos o nome dentro de um objeto, que cria uma nova organização.
+      payload.organization = { name: organizationName.trim() };
     }
-    // --- FIM DA CORREÇÃO ---
+    // --- FIM DA CORREÇÃO FINAL ---
 
     console.log('[DEBUG] Payload final para criar pessoa:', JSON.stringify(payload, null, 2));
 
