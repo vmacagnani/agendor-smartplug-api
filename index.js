@@ -92,13 +92,16 @@ app.post('/api/criar-contato', async (req, res) => {
       }
     }
 
+    // --- INÍCIO DA CORREÇÃO ---
+    // O email deve ser enviado dentro do objeto 'contact'.
     const payload = {
       name: name,
-      email: email,
-      contact: { whatsapp: phone || null }
+      contact: { 
+        email: email,
+        whatsapp: phone || null 
+      }
     };
     
-    // --- INÍCIO DA CORREÇÃO FINAL ---
     // A documentação da API mostra que o valor da chave "organization" deve ser o ID (integer) diretamente.
     if (organizationId) {
       payload.organization = parseInt(organizationId, 10);
@@ -106,7 +109,7 @@ app.post('/api/criar-contato', async (req, res) => {
       // Se não tivermos um ID, enviamos o nome dentro de um objeto, que cria uma nova organização.
       payload.organization = { name: organizationName.trim() };
     }
-    // --- FIM DA CORREÇÃO FINAL ---
+    // --- FIM DA CORREÇÃO ---
 
     console.log('[DEBUG] Payload final para criar pessoa:', JSON.stringify(payload, null, 2));
 
