@@ -46,7 +46,7 @@ app.get('/api/contato', async (req, res) => {
   }
 });
 
-// Rota para CRIAR um novo contato no Agendor (versão atualizada)
+// Rota para CRIAR um novo contato no Agendor (versão corrigida)
 app.post('/api/criar-contato', async (req, res) => {
   // Adicionamos 'organizationId' aos dados recebidos
   const { name, email, organizationName, organizationId, phone } = req.body;
@@ -65,12 +65,14 @@ app.post('/api/criar-contato', async (req, res) => {
     contact: { whatsapp: phone || null }
   };
 
-  // Adiciona a organização por ID (preferencial) ou por nome
+  // --- INÍCIO DA CORREÇÃO ---
+  // Adiciona a organização SOMENTE se um nome ou ID for fornecido e não estiver vazio
   if (organizationId) {
     payload.organization = { id: organizationId };
-  } else if (organizationName) {
-    payload.organization = { name: organizationName };
+  } else if (organizationName && organizationName.trim() !== '') {
+    payload.organization = { name: organizationName.trim() };
   }
+  // --- FIM DA CORREÇÃO ---
 
   try {
     const response = await axios.post('https://api.agendor.com.br/v3/people', payload, {
