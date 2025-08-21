@@ -13,9 +13,15 @@ app.use(cors());
 app.use(express.json());
 
 
-// --- VARIÁVEIS DE AMBIENTE ---
+// --- VARIÁVEIS DE AMBIENTE E MAPEAMENTO ---
 const AGENDOR_API_KEY = process.env.AGENDOR_API_KEY;
 const PORT = process.env.PORT || 3000;
+
+// IMPORTANTE: Substitua os valores pelos IDs de usuário reais do Agendor
+const USER_MAP = {
+    'daniel.martins@avatek.com.br': 123456, // Substituir pelo ID real
+    'denise.grigorine@avatek.com.br': 789012  // Substituir pelo ID real
+};
 
 
 // --- ROTAS DA API ---
@@ -40,9 +46,9 @@ app.get('/api/contato', async (req, res) => {
   }
 });
 
-// Rota para CRIAR um novo contato no Agendor (versão com lógica de organização inteligente)
+// Rota para CRIAR um novo contato no Agendor
 app.post('/api/criar-contato', async (req, res) => {
-  const { name, email, organizationName, phone } = req.body;
+  const { name, email, organizationName, phone, ownerUserEmail } = req.body;
 
   if (!name || !email) {
     return res.status(400).json({ error: 'Nome e Email são obrigatórios.' });
@@ -56,7 +62,6 @@ app.post('/api/criar-contato', async (req, res) => {
 
     if (organizationName && organizationName.trim() !== '') {
       const trimmedOrgName = organizationName.trim();
-      
       try {
         const searchResponse = await axios.get(`https://api.agendor.com.br/v3/organizations?name=${encodeURIComponent(trimmedOrgName)}`, {
           headers: { 'Authorization': `Token ${AGENDOR_API_KEY}` }
@@ -67,7 +72,6 @@ app.post('/api/criar-contato', async (req, res) => {
       } catch (searchError) {
         if (searchError.response?.status !== 404) console.error("Erro ao buscar empresa:", searchError.message);
       }
-
       if (!organizationId) {
         try {
           const createResponse = await axios.post('https://api.agendor.com.br/v3/organizations', { name: trimmedOrgName }, {
@@ -92,8 +96,6 @@ app.post('/api/criar-contato', async (req, res) => {
       }
     }
 
-    // --- INÍCIO DA CORREÇÃO ---
-    // O email deve ser enviado dentro do objeto 'contact'.
     const payload = {
       name: name,
       contact: { 
@@ -102,16 +104,14 @@ app.post('/api/criar-contato', async (req, res) => {
       }
     };
     
-    // A documentação da API mostra que o valor da chave "organization" deve ser o ID (integer) diretamente.
     if (organizationId) {
       payload.organization = parseInt(organizationId, 10);
-    } else if (organizationName && organizationName.trim() !== '') {
-      // Se não tivermos um ID, enviamos o nome dentro de um objeto, que cria uma nova organização.
-      payload.organization = { name: organizationName.trim() };
     }
-    // --- FIM DA CORREÇÃO ---
-
-    console.log('[DEBUG] Payload final para criar pessoa:', JSON.stringify(payload, null, 2));
+    
+    // Adiciona o ownerUser se um email válido foi fornecido
+    if (ownerUserEmail && USER_MAP[ownerUserEmail]) {
+        payload.ownerUser = USER_MAP[ownerUserEmail];
+    }
 
     const response = await axios.post('https://api.agendor.com.br/v3/people', payload, {
       headers: { 'Authorization': `Token ${AGENDOR_API_KEY}`, 'Content-Type': 'application/json' }
@@ -150,10 +150,16 @@ app.get('/api/empresa', async (req, res) => {
 });
 
 app.post('/api/criar-empresa', async (req, res) => {
-    const { name } = req.body;
+    const { name, cnpj, ownerUserEmail } = req.body;
     if (!name) return res.status(400).json({ error: 'Nome da empresa é obrigatório.' });
     if (!AGENDOR_API_KEY) return res.status(500).json({ error: 'Erro de configuração: AGENDOR_API_KEY ausente.' });
+    
     const payload = { name };
+    if (cnpj) payload.cnpj = cnpj;
+    if (ownerUserEmail && USER_MAP[ownerUserEmail]) {
+        payload.ownerUser = USER_MAP[ownerUserEmail];
+    }
+
     try {
         const response = await axios.post('https://api.agendor.com.br/v3/organizations', payload, {
             headers: { 'Authorization': `Token ${AGENDOR_API_KEY}`, 'Content-Type': 'application/json' }
