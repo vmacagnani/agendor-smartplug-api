@@ -59,6 +59,7 @@ app.post('/api/criar-contato', async (req, res) => {
 
   try {
     let organizationId = null;
+    console.log(`[DEBUG] Iniciando criação de contato para: ${email} com empresa: "${organizationName}"`);
 
     // Se um nome de empresa foi fornecido, vamos encontrar ou criar o ID dela
     if (organizationName && organizationName.trim() !== '') {
@@ -66,37 +67,45 @@ app.post('/api/criar-contato', async (req, res) => {
       
       // 1. Tenta buscar a empresa pelo nome exato
       try {
+        console.log(`[DEBUG] Buscando empresa: "${trimmedOrgName}"`);
         const searchResponse = await axios.get(`https://api.agendor.com.br/v3/organizations?name=${encodeURIComponent(trimmedOrgName)}`, {
           headers: { 'Authorization': `Token ${AGENDOR_API_KEY}` }
         });
         if (searchResponse.data?.data?.length > 0) {
           organizationId = searchResponse.data.data[0].id;
+          console.log(`[DEBUG] Empresa encontrada. ID: ${organizationId}`);
+        } else {
+          console.log(`[DEBUG] Empresa "${trimmedOrgName}" não encontrada.`);
         }
       } catch (searchError) {
         if (searchError.response?.status !== 404) console.error("Erro ao buscar empresa:", searchError.message);
+        else console.log(`[DEBUG] Empresa "${trimmedOrgName}" não encontrada (retorno 404).`);
       }
 
       // 2. Se a empresa não foi encontrada, cria uma nova
       if (!organizationId) {
         try {
+          console.log(`[DEBUG] Criando nova empresa: "${trimmedOrgName}"`);
           const createResponse = await axios.post('https://api.agendor.com.br/v3/organizations', { name: trimmedOrgName }, {
             headers: { 'Authorization': `Token ${AGENDOR_API_KEY}`, 'Content-Type': 'application/json' }
           });
           const createdOrg = createResponse.data.data || createResponse.data.organization || createResponse.data;
           organizationId = createdOrg.id;
+          console.log(`[DEBUG] Empresa criada com sucesso. ID: ${organizationId}`);
         } catch (createError) {
-            // Se a criação falhar por conflito (outra pessoa criou ao mesmo tempo), tenta buscar novamente
             if(createError.response?.status === 409) {
+                console.log(`[DEBUG] Conflito ao criar empresa (409), tentando buscar novamente.`);
                 const raceSearchResponse = await axios.get(`https://api.agendor.com.br/v3/organizations?name=${encodeURIComponent(trimmedOrgName)}`, {
                     headers: { 'Authorization': `Token ${AGENDOR_API_KEY}` }
                 });
                 if (raceSearchResponse.data?.data?.length > 0) {
                     organizationId = raceSearchResponse.data.data[0].id;
+                    console.log(`[DEBUG] Empresa encontrada após conflito. ID: ${organizationId}`);
                 } else {
                     throw new Error('Falha ao encontrar empresa após conflito.');
                 }
             } else {
-                throw createError; // Lança outros erros de criação
+                throw createError;
             }
         }
       }
@@ -112,6 +121,8 @@ app.post('/api/criar-contato', async (req, res) => {
       payload.organization = { id: organizationId };
     }
 
+    console.log('[DEBUG] Payload final para criar pessoa:', JSON.stringify(payload, null, 2));
+
     const response = await axios.post('https://api.agendor.com.br/v3/people', payload, {
       headers: { 'Authorization': `Token ${AGENDOR_API_KEY}`, 'Content-Type': 'application/json' }
     });
@@ -123,7 +134,7 @@ app.post('/api/criar-contato', async (req, res) => {
     console.error('Erro no processo de criar contato:', error.response?.data || error.message);
     const status = error.response?.status || 500;
     let message = (error.response?.data?.errors || ['Erro ao criar contato no Agendor.']).join(', ');
-    if (status === 409) { // Este 409 se refere a um email de pessoa duplicado
+    if (status === 409) {
         message = 'Um contato com este email já existe no Agendor.';
     }
     return res.status(status).json({ error: message });
@@ -161,8 +172,6 @@ app.post('/api/criar-empresa', async (req, res) => {
             headers: { 'Authorization': `Token ${AGENDOR_API_KEY}`, 'Content-Type': 'application/json' }
         });
         
-        // A resposta do Agendor pode estar aninhada em 'data' ou 'organization'.
-        // Este código verifica todas as possibilidades e retorna o objeto correto.
         const createdData = response.data.data || response.data.organization || response.data;
         return res.status(201).json(createdData);
 
