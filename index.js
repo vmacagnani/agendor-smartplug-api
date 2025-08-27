@@ -29,11 +29,34 @@ app.get('/api/contato', async (req, res) => {
   if (!email) return res.status(400).json({ error: 'Parâmetro "email" é obrigatório.' });
   if (!AGENDOR_API_KEY) return res.status(500).json({ error: 'Erro de configuração: AGENDOR_API_KEY ausente.' });
   try {
-    const response = await axios.get(`https://api.agendor.com.br/v3/people?email=${email}`, {
+    // 1. Busca os dados da pessoa
+    const personResponse = await axios.get(`https://api.agendor.com.br/v3/people?email=${email}`, {
       headers: { 'Authorization': `Token ${AGENDOR_API_KEY}` }
     });
-    if (response.data?.data?.length > 0) return res.json(response.data.data[0]);
-    return res.status(404).json({ error: 'Contato não encontrado.' });
+
+    if (personResponse.data?.data?.length === 0) {
+        return res.status(404).json({ error: 'Contato não encontrado.' });
+    }
+
+    let personData = personResponse.data.data[0];
+
+    // --- INÍCIO DA MELHORIA ---
+    // 2. Se a pessoa tem uma empresa, busca os detalhes completos dessa empresa
+    if (personData.organization && personData.organization.id) {
+        try {
+            const orgResponse = await axios.get(`https://api.agendor.com.br/v3/organizations/${personData.organization.id}`, {
+                headers: { 'Authorization': `Token ${AGENDOR_API_KEY}` }
+            });
+            // 3. Substitui os dados resumidos da empresa pelos dados completos
+            personData.organization = orgResponse.data.data || orgResponse.data;
+        } catch (orgError) {
+            console.error(`Não foi possível buscar detalhes da organização ID ${personData.organization.id}. Usando dados resumidos.`);
+        }
+    }
+    // --- FIM DA MELHORIA ---
+
+    return res.json(personData);
+
   } catch (error) {
     const status = error.response?.status || 500;
     return res.status(status).json({ error: 'Erro ao buscar contato no Agendor.' });
@@ -102,7 +125,6 @@ app.post('/api/criar-contato', async (req, res) => {
       payload.organization = parseInt(organizationId, 10);
     }
     
-    // A documentação permite enviar o email do responsável diretamente.
     if (ownerUserEmail) {
         payload.ownerUser = ownerUserEmail;
     }
@@ -144,7 +166,6 @@ app.get('/api/empresa', async (req, res) => {
 });
 
 app.post('/api/criar-empresa', async (req, res) => {
-    // Adiciona 'description' aos dados recebidos do corpo da requisição
     const { name, cnpj, ownerUserEmail, description } = req.body;
     if (!name) return res.status(400).json({ error: 'Nome da empresa é obrigatório.' });
     if (!AGENDOR_API_KEY) return res.status(500).json({ error: 'Erro de configuração: AGENDOR_API_KEY ausente.' });
@@ -154,7 +175,6 @@ app.post('/api/criar-empresa', async (req, res) => {
     if (ownerUserEmail) {
         payload.ownerUser = ownerUserEmail;
     }
-    // Adiciona a descrição ao payload se ela for enviada
     if (description) {
         payload.description = description;
     }
