@@ -29,7 +29,6 @@ app.get('/api/contato', async (req, res) => {
   if (!email) return res.status(400).json({ error: 'Parâmetro "email" é obrigatório.' });
   if (!AGENDOR_API_KEY) return res.status(500).json({ error: 'Erro de configuração: AGENDOR_API_KEY ausente.' });
   try {
-    // 1. Busca os dados da pessoa
     const personResponse = await axios.get(`https://api.agendor.com.br/v3/people?email=${email}`, {
       headers: { 'Authorization': `Token ${AGENDOR_API_KEY}` }
     });
@@ -40,20 +39,16 @@ app.get('/api/contato', async (req, res) => {
 
     let personData = personResponse.data.data[0];
 
-    // --- INÍCIO DA MELHORIA ---
-    // 2. Se a pessoa tem uma empresa, busca os detalhes completos dessa empresa
     if (personData.organization && personData.organization.id) {
         try {
             const orgResponse = await axios.get(`https://api.agendor.com.br/v3/organizations/${personData.organization.id}`, {
                 headers: { 'Authorization': `Token ${AGENDOR_API_KEY}` }
             });
-            // 3. Substitui os dados resumidos da empresa pelos dados completos
             personData.organization = orgResponse.data.data || orgResponse.data;
         } catch (orgError) {
             console.error(`Não foi possível buscar detalhes da organização ID ${personData.organization.id}. Usando dados resumidos.`);
         }
     }
-    // --- FIM DA MELHORIA ---
 
     return res.json(personData);
 
@@ -63,7 +58,6 @@ app.get('/api/contato', async (req, res) => {
   }
 });
 
-// Rota para CRIAR um novo contato no Agendor
 app.post('/api/criar-contato', async (req, res) => {
   const { name, email, organizationName, phone, ownerUserEmail } = req.body;
 
@@ -85,31 +79,15 @@ app.post('/api/criar-contato', async (req, res) => {
         });
         if (searchResponse.data?.data?.length > 0) {
           organizationId = searchResponse.data.data[0].id;
+        } else {
+          return res.status(404).json({ error: `Empresa "${trimmedOrgName}" não encontrada. Cadastre a empresa primeiro.` });
         }
       } catch (searchError) {
-        if (searchError.response?.status !== 404) console.error("Erro ao buscar empresa:", searchError.message);
-      }
-      if (!organizationId) {
-        try {
-          const createResponse = await axios.post('https://api.agendor.com.br/v3/organizations', { name: trimmedOrgName }, {
-            headers: { 'Authorization': `Token ${AGENDOR_API_KEY}`, 'Content-Type': 'application/json' }
-          });
-          const createdOrg = createResponse.data.data || createResponse.data.organization || createResponse.data;
-          organizationId = createdOrg.id;
-        } catch (createError) {
-            if(createError.response?.status === 409) {
-                const raceSearchResponse = await axios.get(`https://api.agendor.com.br/v3/organizations?name=${encodeURIComponent(trimmedOrgName)}`, {
-                    headers: { 'Authorization': `Token ${AGENDOR_API_KEY}` }
-                });
-                if (raceSearchResponse.data?.data?.length > 0) {
-                    organizationId = raceSearchResponse.data.data[0].id;
-                } else {
-                    throw new Error('Falha ao encontrar empresa após conflito.');
-                }
-            } else {
-                throw createError;
-            }
+        if (searchError.response?.status !== 404) {
+            console.error("Erro ao buscar empresa:", searchError.message);
+            return res.status(500).json({ error: 'Erro ao verificar a empresa no Agendor.' });
         }
+         return res.status(404).json({ error: `Empresa "${trimmedOrgName}" não encontrada. Cadastre a empresa primeiro.` });
       }
     }
 
@@ -166,7 +144,8 @@ app.get('/api/empresa', async (req, res) => {
 });
 
 app.post('/api/criar-empresa', async (req, res) => {
-    const { name, cnpj, ownerUserEmail, description } = req.body;
+    // Adiciona 'sector' aos dados recebidos do corpo da requisição
+    const { name, cnpj, ownerUserEmail, description, sector } = req.body;
     if (!name) return res.status(400).json({ error: 'Nome da empresa é obrigatório.' });
     if (!AGENDOR_API_KEY) return res.status(500).json({ error: 'Erro de configuração: AGENDOR_API_KEY ausente.' });
     
@@ -177,6 +156,10 @@ app.post('/api/criar-empresa', async (req, res) => {
     }
     if (description) {
         payload.description = description;
+    }
+    // Adiciona o setor ao payload se ele for enviado
+    if (sector) {
+        payload.sector = sector;
     }
 
     try {
