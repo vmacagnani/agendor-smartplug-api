@@ -144,8 +144,8 @@ app.get('/api/empresa', async (req, res) => {
 });
 
 app.post('/api/criar-empresa', async (req, res) => {
-    // Adiciona 'sector' aos dados recebidos do corpo da requisição
-    const { name, cnpj, ownerUserEmail, description, sector } = req.body;
+    // Adiciona 'category' aos dados recebidos do corpo da requisição
+    const { name, cnpj, ownerUserEmail, description, sector, category } = req.body;
     if (!name) return res.status(400).json({ error: 'Nome da empresa é obrigatório.' });
     if (!AGENDOR_API_KEY) return res.status(500).json({ error: 'Erro de configuração: AGENDOR_API_KEY ausente.' });
     
@@ -157,9 +157,12 @@ app.post('/api/criar-empresa', async (req, res) => {
     if (description) {
         payload.description = description;
     }
-    // Adiciona o setor ao payload se ele for enviado
     if (sector) {
         payload.sector = sector;
+    }
+    // Adiciona a categoria ao payload se ela for enviada e não for vazia
+    if (category) {
+        payload.category = category;
     }
 
     try {
